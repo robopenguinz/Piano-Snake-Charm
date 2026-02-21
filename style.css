@@ -1,0 +1,19 @@
+body {
+  font-family: Arial, sans-serif;
+  background: #111;
+  color: white;
+  padding: 20px;
+}
+
+h1, h2 {
+  margin: 10px 0;
+}
+
+pre {
+  background: #1e1e1e;
+  border: 1px solid #333;
+  padding: 10px;
+  height: 150px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
