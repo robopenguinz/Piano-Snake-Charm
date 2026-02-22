@@ -149,7 +149,7 @@ let swagTriggered=false, strobeInterval=null, strobeActive=false;
 function triggerSwag(){
   if(swagTriggered)return; swagTriggered=true;
   // Drop to 30vh — upper third of screen
-  requestAnimationFrame(()=>{document.getElementById("swag-img").style.top="30vh";});
+  requestAnimationFrame(()=>{document.getElementById("swag-img").style.top="45vh";});
 }
 function startStrobe(){
   if(strobeActive)return; strobeActive=true;
