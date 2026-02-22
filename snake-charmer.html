@@ -92,7 +92,7 @@
       title: "Berlin",
       subtitle: "Germany · Techno · Chromatic",
       music: "assets/techno.mp3",
-      scaleIndex: 4,   // Chromatic
+      scaleIndex: 5,   // Chromatic
       angerRefillBase: 0.50,
       angerRefillMax:  1.00,
     },
@@ -123,7 +123,7 @@
       diagramEl.src = "assets/pentatonic.png";
       break;
     case 3:
-      diagramEl.src = "assets/pelog.png";
+      diagramEl.src = "assets/pelogbem.png";
       break;
     case 4:
       diagramEl.src = "assets/chromatic.png";
@@ -158,6 +158,10 @@
     angerBar.style.width = anger + "%";
     updateSnakeImage();
   }, 100);
+
+  if (LEVEL.index == 3) { // gamelan level logic
+    let bem = true;
+  }
 
   let comboCount = 0;
   const comboEl = document.getElementById("combo");
@@ -291,12 +295,29 @@ function playNote(notenum, velocity = 1) {
   }
 }
 
+let musicStarted = false
+let bem = true
+
 function startMusic() {
+  if (musicStarted) return;
+  musicStarted = true
   const bgm = document.getElementById("bgmusic");
   if (!bgm) return;
   bgm.volume = 0.5;
   if (audioCtx.state === "suspended") audioCtx.resume();
-  if (bgm.paused) bgm.play().catch(() => {});
+  if (bgm.paused) bgm.play().catch(() => {});  
+  
+  if (LEVEL.index == 3) { // gamelan level logic
+    const scaleSwitchInterval = setInterval(() => {
+      if (bem) {
+        diagramEl.src = "assets/pelogbarang.png";
+        bem = false;
+      } else {
+        diagramEl.src = "assets/pelogbem.png";
+        bem = true;
+      }
+    }, 2000)
+  }
 }
 
 const indicator = document.createElement("div");
@@ -369,13 +390,15 @@ const scales = [
     [48, 50, 52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72], // Major
     [48, 50, 51, 53, 55, 56, 59, 60, 62, 63, 65, 67, 68, 71, 72], // Harmonic Minor
     [48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72],                 // Pentatonic
-    [48, 49, 52, 55, 56, 59, 60, 61, 64, 67, 68, 71, 72],         // Pelog
-    [49, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72] // Chromatic
+    [48, 49, 54, 55, 56, 60, 61, 66, 67, 68, 72],                 // Pelog Bem
+    [49, 52, 55, 56, 59, 61, 64, 67, 68, 71],         // Pelog Barang
+    [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72] // Chromatic
 ];
 
 let last = [];
 let lastNote = null;
 let lastNoteTime = 0;
+const starttime = Date.now()
 
 function score(level, note) {
     const now = Date.now();
@@ -392,7 +415,12 @@ function score(level, note) {
     lastNote = note;
     lastNoteTime = now;
     last.push(note);
-    if (!scales[level].includes(note)) return -1.0;
+    let scaleIndex = level;
+    if (level == 3) {
+      if (bem) { scaleIndex = 3; }
+      else { scaleIndex = 4; }
+    }
+    if (!scales[scaleIndex].includes(note)) return -1.0;
     if (last.length < 6) return 0.5;
     if (last.length > 6) last = last.slice(-6);
     for (let i = 0; i < 5; i++) {
