@@ -13,7 +13,7 @@
 
 <!-- Left side overlay -->
 <div style="position:fixed;top:0;left:0;width:750px;height:100%;background:rgba(128,128,128,0.75);pointer-events:none;z-index:10;">
-  <img src="assets/piano.png" style="position:fixed; bottom: 0;">
+  <img id="diagram" src="assets/piano.png" style="position:fixed; bottom: 0;">
 </div>
 
 <!-- Right side snake + basket -->
@@ -83,7 +83,7 @@
       title: "Java",
       subtitle: "Indonesia · Gamelan · Pelog",
       music: "assets/gamelan.mp3",
-      scaleIndex: 3,   // Pelog Bem
+      scaleIndex: 3,   // Pelog
       angerRefillBase: 0.38,
       angerRefillMax:  0.82,
     },
@@ -92,7 +92,7 @@
       title: "Berlin",
       subtitle: "Germany · Techno · Chromatic",
       music: "assets/techno.mp3",
-      scaleIndex: 4,   // Pelog Barang (repurposed as chromatic-ish)
+      scaleIndex: 4,   // Chromatic
       angerRefillBase: 0.50,
       angerRefillMax:  1.00,
     },
@@ -110,6 +110,25 @@
   // Set background music
   const bgmEl = document.getElementById("bgmusic");
   bgmEl.src = LEVEL.music;
+
+  const diagramEl = document.getElementById("diagram");
+  switch (LEVEL.index) {
+    case 0:
+      diagramEl.src = "assets/major.png";
+      break;
+    case 1:
+      diagramEl.src = "assets/harmonicminor.png";
+      break;
+    case 2:
+      diagramEl.src = "assets/pentatonic.png";
+      break;
+    case 3:
+      diagramEl.src = "assets/pelog.png";
+      break;
+    case 4:
+      diagramEl.src = "assets/chromatic.png";
+      break;
+  }
 
   let gameOver = false;
 
@@ -146,7 +165,7 @@
 
   function updateCombo(scoreValue) {
     if (scoreValue > 0) comboCount++;
-    else comboCount = 0;
+    else if (scoreValue != 0) comboCount = 0;
     if (comboCount >= 2) {
       comboEl.textContent = `x${comboCount} COMBO`;
       comboEl.style.opacity = "1";
@@ -159,14 +178,14 @@
 
   function getComboMultiplier() {
     if (comboCount < 2) return 1.0;
-    return Math.pow(1.5, comboCount);
+    return Math.pow(comboCount, .7);
   }
 
   function drainAnger(scoreValue) {
     if (gameOver) return;
     if (scoreValue <= 0) return;
     const resistance = 1 + ((100 - anger) / 100) * 1.2;
-    const drain = (scoreValue * 10 * getComboMultiplier()) / resistance;
+    const drain = (scoreValue * 5 * getComboMultiplier()) / resistance;
     anger = Math.max(0, anger - drain);
     angerBar.style.width = anger + "%";
     updateSnakeImage();
@@ -226,11 +245,29 @@
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
 let pianoBuffer = null;
-fetch("assets/piano.mp3")
+let notestring = "assets/piano.mp3"
+switch (LEVEL.index) {
+  case 0:
+    notestring = "assets/piano.mp3";
+    break;
+  case 1:
+    notestring = "assets/oud.mp3";
+    break;
+  case 2:
+    notestring = "assets/lyre.mp3";
+    break;
+  case 3:
+    notestring = "assets/gangsa.mp3";
+    break;
+  case 4:
+    notestring = "assets/piano.mp3";
+    break;
+}
+fetch(notestring)
   .then(r => r.arrayBuffer())
   .then(ab => audioCtx.decodeAudioData(ab))
   .then(buf => { pianoBuffer = buf; })
-  .catch(err => console.warn("piano.mp3 load failed:", err));
+  .catch(err => console.warn("note.mp3 load failed:", err));
 
 function playNote(notenum, velocity = 1) {
   if (audioCtx.state === "suspended") audioCtx.resume();
@@ -257,7 +294,7 @@ function playNote(notenum, velocity = 1) {
 function startMusic() {
   const bgm = document.getElementById("bgmusic");
   if (!bgm) return;
-  bgm.volume = 0.15;
+  bgm.volume = 0.5;
   if (audioCtx.state === "suspended") audioCtx.resume();
   if (bgm.paused) bgm.play().catch(() => {});
 }
@@ -331,9 +368,9 @@ function releaseNote(midiNote) {
 const scales = [
     [48, 50, 52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72], // Major
     [48, 50, 51, 53, 55, 56, 59, 60, 62, 63, 65, 67, 68, 71, 72], // Harmonic Minor
-    [48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72],                  // Pentatonic
-    [48, 49, 52, 55, 56, 60, 61, 64, 67, 68, 72],                  // Pelog Bem
-    [49, 52, 55, 56, 59, 61, 64, 67, 68, 71]                       // Pelog Barang
+    [48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72],                 // Pentatonic
+    [48, 49, 52, 55, 56, 59, 60, 61, 64, 67, 68, 71, 72],         // Pelog
+    [49, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72] // Chromatic
 ];
 
 let last = [];
