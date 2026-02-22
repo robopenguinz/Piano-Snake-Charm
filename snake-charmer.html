@@ -10,6 +10,8 @@
 
 <audio id="bgmusic" loop></audio>
 
+<div id="bg" style="position:fixed;inset:0;z-index:0;background-size:cover;background-position:center;background-repeat:no-repeat;"></div>
+
 <div style="position:fixed;top:0;left:0;width:750px;height:100%;background:rgba(128,128,128,0.75);pointer-events:none;z-index:10;">
   <img id="diagram" src="assets/piano.png" style="position:fixed;bottom:0;">
 </div>
@@ -30,14 +32,15 @@
 <div id="level-title" style="position:fixed;top:16px;left:50%;transform:translateX(-50%);font-family:Arial,sans-serif;font-size:1rem;font-weight:bold;color:rgba(255,255,255,0.6);letter-spacing:0.15em;text-transform:uppercase;z-index:100;"></div>
 
 <div id="song-wrap" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);width:400px;pointer-events:none;z-index:100;">
-  <div style="font-family:Arial,sans-serif;font-size:0.75rem;color:white;text-align:center;margin-bottom:5px;letter-spacing:0.12em;">▶ PRESS ANY KEY TO PLAY THE SONG</div>
+  <div style="font-family:Arial,sans-serif;font-size:0.75rem;color:white;text-align:center;margin-bottom:5px;letter-spacing:0.12em;">&#9654; PRESS ANY KEY TO PLAY THE SONG</div>
   <div style="width:400px;height:16px;background:rgba(0,0,0,0.5);border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.25);">
     <div id="song-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#7a7ae8,#e87ae8);border-radius:8px;transition:width 0.15s ease;"></div>
   </div>
   <div id="song-pct" style="font-family:Arial,sans-serif;font-size:0.65rem;color:#aaa;text-align:center;margin-top:4px;">0%</div>
 </div>
 
-<img id="swag-img" src="assets/swag.png" style="display:none;position:fixed;left:75%;bottom:750px;transform:translateX(-50%);width:200px;image-rendering:pixelated;pointer-events:none;z-index:100;transition:bottom 3.2s cubic-bezier(0.22,1,0.36,1);">
+<!-- swag: starts off-screen top, drops to 30vh (less than halfway) -->
+<img id="swag-img" src="assets/swag.png" style="display:none;position:fixed;left:75%;top:-300px;transform:translate(-50%,-50%);width:200px;image-rendering:pixelated;pointer-events:none;z-index:100;transition:top 3.2s cubic-bezier(0.22,1,0.36,1);">
 <div id="strobe" style="display:none;position:fixed;inset:0;background:white;pointer-events:none;z-index:200;opacity:0;"></div>
 
 <style>
@@ -47,11 +50,11 @@
 
 <script>
 const LEVELS = [
-  {index:0,title:"Vienna",subtitle:"Austria · Classical · Major Scale",    music:"assets/classical.mp3", background:"assets/vienna", scaleIndex:0,angerRefillBase:0.15,angerRefillMax:0.45},
-  {index:1,title:"Tehran",subtitle:"Iran · Arabic · Harmonic Minor",       music:"assets/arabic.mp3",    background:"assets/vienna",scaleIndex:1,angerRefillBase:0.22,angerRefillMax:0.58},
-  {index:2,title:"Dublin",subtitle:"Ireland · Irish Folk · Pentatonic",    music:"assets/irish.mp3",     background:"assets/vienna",scaleIndex:2,angerRefillBase:0.30,angerRefillMax:0.70},
-  {index:3,title:"Java",  subtitle:"Indonesia · Gamelan · Pelog",          music:"assets/gamelan.mp3",   background:"assets/vienna",scaleIndex:3,angerRefillBase:0.38,angerRefillMax:0.82},
-  {index:4,title:"Berlin",subtitle:"Germany · Techno — press keys to play the song",music:null,  background:"assets/vienna", scaleIndex:4,angerRefillBase:0,   angerRefillMax:0   },
+  {index:0, title:"Vienna", subtitle:"Austria · Classical · Major Scale",              music:"assets/classical.mp3", instrument:"assets/piano.mp3",  diagram:"assets/major.png",        background:"assets/vienna.png",    scaleIndex:0, angerRefillBase:0.15, angerRefillMax:0.45},
+  {index:1, title:"Tehran", subtitle:"Iran · Arabic · Harmonic Minor",                 music:"assets/arabic.mp3",    instrument:"assets/oud.mp3",    diagram:"assets/harmonicminor.png", background:"assets/sahara.png",    scaleIndex:1, angerRefillBase:0.22, angerRefillMax:0.58},
+  {index:2, title:"Dublin", subtitle:"Ireland · Irish Folk · Pentatonic",              music:"assets/irish.mp3",     instrument:"assets/lyre.mp3",   diagram:"assets/pentatonic.png",    background:"assets/pub.png",       scaleIndex:2, angerRefillBase:0.30, angerRefillMax:0.70},
+  {index:3, title:"Java",   subtitle:"Indonesia · Gamelan · Pelog",                    music:"assets/gamelan.mp3",   instrument:"assets/gangsa.mp3", diagram:"assets/pelogbem.png",      background:"assets/acient.png",    scaleIndex:3, angerRefillBase:0.38, angerRefillMax:0.82},
+  {index:4, title:"Berlin", subtitle:"Germany · Techno — press keys to play the song", music:null,                   instrument:"assets/piano.mp3",  diagram:"assets/chromatic.png",     background:"assets/Techno(1).png", scaleIndex:4, angerRefillBase:0,    angerRefillMax:0},
 ];
 
 const params = new URLSearchParams(window.location.search);
@@ -64,6 +67,7 @@ document.getElementById("level-title").textContent = `${LEVEL.title} — ${LEVEL
 if (!isBerlin && LEVEL.music) document.getElementById("bgmusic").src = LEVEL.music;
 const diagrams=["assets/major.png","assets/harmonicminor.png","assets/pentatonic.png","assets/pelog.png","assets/chromatic.png"];
 document.getElementById("diagram").src = diagrams[LEVEL.index]||"assets/piano.png";
+if (LEVEL.background) document.getElementById("bg").style.backgroundImage = `url('${LEVEL.background}')`;
 
 if (isBerlin) {
   document.getElementById("anger-wrap").style.display="none";
@@ -112,16 +116,18 @@ function drainAnger(v){
   if(anger<=0)triggerWin();
 }
 
+// Win overlay — also listens for any key/MIDI note to continue
+let winAction=null;
 function triggerWin(){
   if(gameOver)return; gameOver=true;
   stopStrobe();
   clearInterval(timerInterval);clearInterval(angerRefillInterval);
   const isLast=levelIndex>=LEVELS.length-1;
-  const nextAction=isLast?"window.location.href='index.html'":`window.location.href='snake-charmer.html?level=${levelIndex+1}'`;
-  const nextLabel=isLast?"Back to Menu":"Next Level";
+  winAction=isLast?"window.location.href='index.html'":`window.location.href='snake-charmer.html?level=${levelIndex+1}'`;
+  const nextLabel=isLast?"Back to Menu":"Next Level ▶ press any key";
   const nextSubtitle=isLast?"You've charmed all the snakes!":`Next: ${LEVELS[levelIndex+1].title} — ${LEVELS[levelIndex+1].subtitle}`;
-  if(!isBerlin){document.getElementById("snake-img").style.animation="slideDown 3s ease-in forwards";setTimeout(()=>showOverlay("You Win! 🎵",nextSubtitle,"#7ae8a0",nextLabel,nextAction),3000);}
-  else setTimeout(()=>showOverlay("You Win! 🎵",nextSubtitle,"#7ae8a0",nextLabel,nextAction),700);
+  if(!isBerlin){document.getElementById("snake-img").style.animation="slideDown 3s ease-in forwards";setTimeout(()=>showOverlay("You Win! 🎵",nextSubtitle,"#7ae8a0",nextLabel,winAction),3000);}
+  else setTimeout(()=>showOverlay("You Win! 🎵",nextSubtitle,"#7ae8a0",nextLabel,winAction),700);
 }
 
 function updateSnakeImage(){
@@ -133,6 +139,7 @@ function updateSnakeImage(){
 
 function showOverlay(title,subtitle,color,btnText,btnAction){
   const o=document.createElement("div");
+  o.id="win-overlay";
   o.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:Arial,sans-serif;color:white;text-align:center;padding:20px;";
   o.innerHTML=`<h1 style="font-size:4rem;margin-bottom:0.2em;color:${color};">${title}</h1><p style="color:#aaa;margin-bottom:2rem;font-size:1.1rem;">${subtitle}</p><button onclick="${btnAction}" style="padding:14px 36px;font-size:1.2rem;background:${color};color:#111;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">${btnText}</button>`;
   document.body.appendChild(o);
@@ -141,7 +148,8 @@ function showOverlay(title,subtitle,color,btnText,btnAction){
 let swagTriggered=false, strobeInterval=null, strobeActive=false;
 function triggerSwag(){
   if(swagTriggered)return; swagTriggered=true;
-  requestAnimationFrame(()=>{document.getElementById("swag-img").style.bottom="20px";});
+  // Drop to 30vh — upper third of screen
+  requestAnimationFrame(()=>{document.getElementById("swag-img").style.top="30vh";});
 }
 function startStrobe(){
   if(strobeActive)return; strobeActive=true;
@@ -172,7 +180,9 @@ const audioCtx=new(window.AudioContext||window.webkitAudioContext)();
 
 const instrumentFiles=["assets/piano.mp3","assets/oud.mp3","assets/lyre.mp3","assets/gangsa.mp3","assets/piano.mp3"];
 let instrumentBuffer=null;
-fetch(instrumentFiles[LEVEL.index]).then(r=>r.arrayBuffer()).then(ab=>audioCtx.decodeAudioData(ab)).then(buf=>{instrumentBuffer=buf;}).catch(e=>console.warn("Instrument load failed:",e));
+if(!isBerlin){
+  fetch(instrumentFiles[LEVEL.index]).then(r=>r.arrayBuffer()).then(ab=>audioCtx.decodeAudioData(ab)).then(buf=>{instrumentBuffer=buf;}).catch(e=>console.warn("Instrument load failed:",e));
+}
 
 let technoBuffer=null, technoOffset=0, technoDuration=0;
 let berlinChunkEndTime=0, berlinExtended=false;
@@ -317,6 +327,58 @@ function score(level,note){
   return 0.5;
 }
 
+// ── Shared note handler ────────────────────────────────────────────────
+function handleNoteOn(midiNum, velocity, octave){
+  // If win overlay is showing, any note press advances to next level
+  if(gameOver && winAction){
+    eval(winAction);
+    return;
+  }
+  startMusic();
+  // Berlin: advance song chunk + show key visuals (no scoring/anger)
+  if(isBerlin){
+    playBerlinChunk();
+    const noteName=NOTE_NAMES[midiNum%12]+(octave!=null?octave:Math.floor(midiNum/12)-1);
+    startNote(midiNum, noteName, null); // neutral gray for Berlin
+    return;
+  }
+  playNote(midiNum, velocity);
+  const v=score(LEVEL.scaleIndex, midiNum);
+  const noteName=NOTE_NAMES[midiNum%12]+(octave!=null?octave:Math.floor(midiNum/12)-1);
+  showIndicator(v);
+  startNote(midiNum, noteName, v===0?null:v>0);
+  updateCombo(v);
+  drainAnger(v);
+}
+function handleNoteOff(midiNum){
+  releaseNote(midiNum);
+}
+
+// ── Computer keyboard input ────────────────────────────────────────────
+const KEY_TO_MIDI={
+  '1':48,'2':49,'3':50,'4':51,'5':52,'6':53,'7':54,'8':55,'9':56,'0':57,
+  'q':60,'w':62,'e':64,'r':65,'t':67,'y':69,'u':71,'i':72,'o':74,'p':76,
+  'a':57,'s':59,'d':61,'f':63,'g':65,'h':67,'j':69,'k':71,'l':72,
+};
+const heldKeys=new Set();
+document.addEventListener("keydown",e=>{
+  if(e.repeat)return;
+  const k=e.key.toLowerCase();
+  const midi=KEY_TO_MIDI[k];
+  if(midi===undefined)return;
+  if(heldKeys.has(k))return;
+  heldKeys.add(k);
+  handleNoteOn(midi,0.8,null);
+});
+document.addEventListener("keyup",e=>{
+  const k=e.key.toLowerCase();
+  const midi=KEY_TO_MIDI[k];
+  if(midi===undefined)return;
+  heldKeys.delete(k);
+  handleNoteOff(midi);
+});
+
+// ── MIDI ───────────────────────────────────────────────────────────────
 WebMidi.enable().then(setupMidi).catch(err=>console.error("MIDI enable failed:",err));
 function setupMidi(){
   WebMidi.addListener("connected",()=>WebMidi.inputs.forEach(attachListeners));
@@ -324,17 +386,8 @@ function setupMidi(){
 }
 function attachListeners(input){
   input.removeListener("noteon"); input.removeListener("noteoff");
-  input.addListener("noteon",e=>{
-    startMusic();
-    playNote(e.note.number,e.velocity);
-    // Keys display for ALL levels (including Berlin)
-    const v=score(LEVEL.scaleIndex,e.note.number);
-    const noteName=NOTE_NAMES[e.note.number%12]+e.note.octave;
-    showIndicator(v);
-    startNote(e.note.number,noteName,v===0?null:v>0);
-    if(!isBerlin){updateCombo(v);drainAnger(v);}
-  });
-  input.addListener("noteoff",e=>{releaseNote(e.note.number);});
+  input.addListener("noteon",e=>handleNoteOn(e.note.number,e.velocity,e.note.octave));
+  input.addListener("noteoff",e=>handleNoteOff(e.note.number));
 }
 </script>
 
