@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>MIDI Debug</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/webmidi@latest/dist/iife/webmidi.iife.js"></script>
+</head>
+
+<body>
+
+<h1>MIDI Debug</h1>
+<p><a href="index.html" style="color: #888; font-size: 0.85rem;">← Back to menu</a></p>
+
+<h2>MIDI Inputs</h2>
+<pre id="inputs"></pre>
+
+<h2>MIDI Outputs</h2>
+<pre id="outputs"></pre>
+
+<h2>MIDI Messages</h2>
+<pre id="messages"></pre>
+
+<script src="scoring.js"></script>
+<script>
+const inputsPre  = document.getElementById("inputs");
+const outputsPre = document.getElementById("outputs");
+const messagesPre = document.getElementById("messages");
+
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function midiToFreq(n) { return 440 * Math.pow(2, (n - 69) / 12); }
+
+function playTone(freq, velocity = 1) {
+  const osc  = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = "sine";
+  osc.frequency.value = freq;
+  gain.gain.value = 0.3 * velocity;
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.4);
+}
+
+function log(text) {
+  messagesPre.textContent += text + "\n";
+  messagesPre.scrollTop = messagesPre.scrollHeight;
+}
+
+function listDevices() {
+  inputsPre.textContent  = WebMidi.inputs.map((i, n)  => n + ": " + i.name).join("\n") || "None";
+  outputsPre.textContent = WebMidi.outputs.map((o, n) => n + ": " + o.name).join("\n") || "None";
+}
+
+WebMidi.enable().then(() => {
+  listDevices();
+  WebMidi.addListener("connected",    listDevices);
+  WebMidi.addListener("disconnected", listDevices);
+
+  WebMidi.inputs.forEach(input => {
+    input.addListener("noteon", e => {
+      const freq = midiToFreq(e.note.number);
+      playTone(freq, e.velocity);
+      log("NOTE ON  | " + e.note.identifier + " (" + e.note.number + ") | freq: " + freq.toFixed(1));
+      log("  score: " + score(0, e.note.number));
+    });
+    input.addListener("noteoff", e => {
+      log("NOTE OFF | " + e.note.identifier);
+    });
+    input.addListener("pitchbend", e => {
+      log("PITCHBEND | " + e.value.toFixed(3));
+    });
+    input.addListener("controlchange", e => {
+      log("CC | " + e.controller.number + " | " + e.value);
+    });
+  });
+}).catch(err => log("Enable failed: " + err));
+</script>
+
+</body>

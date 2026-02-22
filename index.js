@@ -33,6 +33,60 @@ function log(text) {
   messagesPre.scrollTop = messagesPre.scrollHeight;
 }
 
+/* ---------- SCORE INDICATOR ---------- */
+
+// Create floating indicator element
+const indicator = document.createElement("div");
+indicator.id = "score-indicator";
+indicator.style.cssText = `
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  font-size: 8rem;
+  font-weight: bold;
+  pointer-events: none;
+  z-index: 1000;
+  transition: transform 0.1s ease-out, opacity 0.3s ease;
+  opacity: 0;
+  text-shadow: 0 0 40px currentColor;
+`;
+document.body.appendChild(indicator);
+
+let indicatorTimeout = null;
+
+function showIndicator(scoreValue) {
+  clearTimeout(indicatorTimeout);
+
+  if (scoreValue === -1) {
+    indicator.textContent = "✗";
+    indicator.style.color = "#e87a7a";
+  } else if (scoreValue >= 1.0) {
+    indicator.textContent = "✓";
+    indicator.style.color = "#7ae8a0";
+  } else {
+    // Partial score (0.4 – 0.8) - repeated note warning
+    indicator.textContent = "~";
+    indicator.style.color = "#e8c97a";
+  }
+
+  indicator.style.opacity = "1";
+  indicator.style.transform = "translate(-50%, -50%) scale(1)";
+
+  indicatorTimeout = setTimeout(() => {
+    indicator.style.opacity = "0";
+    indicator.style.transform = "translate(-50%, -50%) scale(0.6)";
+  }, 600);
+}
+
+/* ---------- ENTER KEY → SNAKE CHARMER ---------- */
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    window.location.href = "menu.html";
+  }
+});
+
 /* ---------- MIDI ---------- */
 
 WebMidi.enable()
@@ -49,25 +103,21 @@ function setupMidi() {
 
     input.addListener("noteon", e => {
       const freq = midiToFreq(e.note.number);
-
       playTone(freq, e.velocity);
 
       log(
         "NOTE ON | " +
         input.name +
         " | " +
-        e.note.name + e.note.octave +
+        e.note.identifier +
         " | freq: " + freq.toFixed(1)
       );
-    });
 
-    input.addListener("noteoff", e => {
-      log(
-        "NOTE OFF | " +
-        input.name +
-        " | " +
-        e.note.name + e.note.octave
-      );
+      let scorevalue = score(0, e.note.number);
+
+      log(e.note.identifier + " (" + e.note.number + ") got a score of " + scorevalue);
+
+      showIndicator(scorevalue);
     });
   });
 }

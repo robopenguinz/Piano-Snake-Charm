@@ -2,28 +2,94 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>WebMIDI Test</title>
-
+  <title>Snake Charmer</title>
   <link rel="stylesheet" href="style.css">
-
   <script src="https://cdn.jsdelivr.net/npm/webmidi@latest/dist/iife/webmidi.iife.js"></script>
 </head>
-
 <body>
 
-<h1>WebMIDI Test</h1>
+<h1>Snake Charmer</h1>
+<p class="subtitle">International Snake Charmer</p>
 
-<p>This lists all MIDI devices and prints live messages.</p>
+<div class="menu">
+  <div class="menu-item selected" data-index="0">
+    <span class="arrow">▶</span>
+    <span>Play</span>
+  </div>
+  <div class="menu-item" data-index="1">
+    <span class="arrow">▶</span>
+    <span>MIDI Debug</span>
+  </div>
+</div>
 
-<h2>MIDI Inputs</h2>
-<pre id="inputs"></pre>
+<div class="hint">
+  Joystick <span>↑ up</span> / <span>↓ down</span> to navigate<br>
+  Any <span>piano key</span> to select
+</div>
 
-<h2>MIDI Outputs</h2>
-<pre id="outputs"></pre>
+<script>
+  const items = document.querySelectorAll(".menu-item");
+  let selected = 0;
 
-<h2>MIDI Messages</h2>
-<pre id="messages"></pre>
+  const DESTINATIONS = [
+    "snake-charmer.html",
+    "debug.html"
+  ];
 
-<script src="index.js"></script>
+  function select(index) {
+    items[selected].classList.remove("selected");
+    selected = (index + items.length) % items.length;
+    items[selected].classList.add("selected");
+  }
+
+  function confirm() {
+    window.location.href = DESTINATIONS[selected];
+  }
+
+  // Keyboard fallback
+  document.addEventListener("keydown", e => {
+    if (e.key === "ArrowUp")    select(selected - 1);
+    if (e.key === "ArrowDown")  select(selected + 1);
+    if (e.key === "Enter")      confirm();
+  });
+
+  // Click fallback
+  items.forEach((item, i) => {
+    item.addEventListener("click", () => { select(i); confirm(); });
+  });
+
+  // Pitchbend joystick + piano key confirm
+  const THRESHOLD = 0.3;
+  const COOLDOWN  = 400;
+  let lastTrigger = 0;
+
+  WebMidi.enable().then(() => {
+    WebMidi.inputs.forEach(attachListeners);
+    WebMidi.addListener("connected", () => WebMidi.inputs.forEach(attachListeners));
+  }).catch(err => console.error("MIDI failed:", err));
+
+  function attachListeners(input) {
+    input.removeListener("pitchbend");
+    input.removeListener("noteon");
+
+    input.addListener("pitchbend", e => {
+      const now = Date.now();
+      if (now - lastTrigger < COOLDOWN) return;
+      if (e.value > THRESHOLD) {
+        select(selected - 1);
+        lastTrigger = now;
+      } else if (e.value < -THRESHOLD) {
+        select(selected + 1);
+        lastTrigger = now;
+      }
+    });
+
+    // Any piano key confirms selection
+    input.addListener("noteon", e => {
+      confirm();
+    });
+  }
+</script>
+
 </body>
 </html>

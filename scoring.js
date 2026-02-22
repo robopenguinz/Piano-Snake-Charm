@@ -1,13 +1,29 @@
-let scales = [
+const scales = [
     [48, 50, 52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72],
     [48, 50, 51, 53, 55, 56, 58, 60, 62, 63, 65, 67, 68, 70, 72],
     [48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72],
     [48, 49, 52, 55, 56, 60, 61, 64, 67, 68, 72],
     [49, 52, 55, 56, 59, 61, 64, 67, 68, 71]
-]
-let last = []
+];
+let last = [];
 
 function score(level, note) {
-    print("scoring " + note)
-    
+    if (!scales[level].includes(note)) {
+        return -1.0;
+    }
+
+    last.unshift(note);
+    while (last.length > 6) { last.pop(); }
+
+    if (last.length < 6) {
+        return 1.0;
+    }
+
+    for (let i = 1; i < 6; i++) {
+        if (last[i] === note) {
+            return i * 0.25; 
+        }
+    }
+
+    return 1.5;
 }

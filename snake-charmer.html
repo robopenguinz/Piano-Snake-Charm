@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Snake Charmer</title>
+  <link rel="stylesheet" href="snake-charmer(1).css">
+  <script src="https://cdn.jsdelivr.net/npm/webmidi@latest/dist/iife/webmidi.iife.js"></script>
+</head>
+<body>
+
+<!-- Background music -->
+<audio id="bgmusic" loop>
+  <source src="assets/classical.mp3" type="audio/mpeg">
+</audio>
+
+<!-- Left side overlay -->
+<div style="position:fixed;top:0;left:0;width:50%;height:100%;background:rgba(128,128,128,0.75);pointer-events:none;z-index:10;"></div>
+
+<!-- Right side snake + basket -->
+<div style="position:fixed;right:5%;top:50%;transform:translateY(-50%);width:200px;height:200px;pointer-events:none;z-index:20;">
+  <!-- Anger meter — shifted right by using right-anchored positioning -->
+  <div style="position:absolute;top:-44px;right:-30px;width:160px;pointer-events:none;">
+    <div style="font-family:Arial,sans-serif;font-size:0.6rem;color:white;text-align:center;margin-bottom:3px;letter-spacing:0.1em;text-shadow:0 0 6px #000;">ANGER</div>
+    <div style="width:160px;height:12px;background:rgba(0,0,0,0.5);border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,0.2);">
+      <div id="anger-bar" style="height:100%;width:100%;background:linear-gradient(90deg,#e8c97a,#e87a7a);border-radius:6px;transition:width 0.2s ease;"></div>
+    </div>
+  </div>
+  <img src="assets/angry (1).png" id="snake-img" style="position:absolute;width:200%;right:50%;image-rendering:pixelated;animation:bob 1.8s ease-in-out infinite;">
+  <img src="assets/basket.png" style="position:absolute;bottom:0;width:200%;right:50%;top:-20%;image-rendering:pixelated;">
+</div>
+
+<!-- Timer -->
+<div id="timer" style="position:fixed;top:16px;right:20px;font-family:Arial,sans-serif;font-size:2rem;font-weight:bold;color:white;text-shadow:0 0 10px rgba(0,0,0,0.8);z-index:100;">60</div>
+
+<!-- Combo display -->
+<div id="combo" style="position:fixed;bottom:30px;right:20px;font-family:Arial,sans-serif;font-size:1.4rem;font-weight:bold;color:#e8c97a;text-shadow:0 0 12px #e8c97a;z-index:100;opacity:0;transition:opacity 0.3s;"></div>
+
+<style>
+@keyframes bob {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-18px); }
+}
+@keyframes slideDown {
+  0%   { transform: translateY(0px);   opacity: 1; }
+  100% { transform: translateY(300px); opacity: 0; }
+}
+</style>
+
+<script>
+  let gameOver = false;
+
+  // Timer
+  let timeLeft = 60;
+  const timerEl = document.getElementById("timer");
+  const timerInterval = setInterval(() => {
+    if (gameOver) return;
+    timeLeft--;
+    timerEl.textContent = timeLeft;
+    if (timeLeft <= 10) timerEl.style.color = "#e87a7a";
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval);
+      clearInterval(angerRefillInterval);
+      gameOver = true;
+      showOverlay("Game Over", "Time's up!", "#e87a7a", "Retry", "location.reload()");
+    }
+  }, 1000);
+
+  // Anger meter
+  let anger = 100;
+  const angerBar = document.getElementById("anger-bar");
+
+  const angerRefillInterval = setInterval(() => {
+    if (gameOver) return;
+    const refillRate = 0.15 + ((100 - anger) / 100) * 0.45;
+    anger = Math.min(100, anger + refillRate);
+    angerBar.style.width = anger + "%";
+    updateSnakeImage();
+  }, 100);
+
+  // Combo system
+  let comboCount = 0;
+  const comboEl = document.getElementById("combo");
+  let comboTimeout = null;
+
+  function updateCombo(scoreValue) {
+    if (scoreValue > 0) {
+      comboCount++;
+    } else {
+      comboCount = 0;
+    }
+    if (comboCount >= 2) {
+      comboEl.textContent = `x${comboCount} COMBO`;
+      comboEl.style.opacity = "1";
+      clearTimeout(comboTimeout);
+      comboTimeout = setTimeout(() => { comboEl.style.opacity = "0"; }, 1500);
+    } else {
+      comboEl.style.opacity = "0";
+    }
+  }
+
+  function getComboMultiplier() {
+    if (comboCount < 2) return 1.0;
+    return Math.pow(1.35, comboCount); // exponential: 1.35^2=1.8, ^5=4.4, ^10=20, ^15=90
+  }
+
+  function drainAnger(scoreValue) {
+    if (gameOver) return;
+    if (scoreValue <= 0) return;
+    const resistance = 1 + ((100 - anger) / 100) * 1.2;
+    const drain = (scoreValue * 6 * getComboMultiplier()) / resistance;
+    anger = Math.max(0, anger - drain);
+    angerBar.style.width = anger + "%";
+    updateSnakeImage();
+    if (anger <= 0) {
+      gameOver = true;
+      clearInterval(timerInterval);
+      clearInterval(angerRefillInterval);
+      const snakeEl = document.getElementById("snake-img");
+      snakeEl.style.animation = "slideDown 3s ease-in forwards";
+      setTimeout(() => {
+        showOverlay("You Win!", "The snake is charmed!", "#7ae8a0", "Next Level", "location.reload()");
+      }, 3000);
+    }
+  }
+
+  function updateSnakeImage() {
+    const snakeEl = document.getElementById("snake-img");
+    if (!snakeEl || gameOver) return;
+    let newSrc;
+    if (anger > 50)      newSrc = "assets/angry (1).png";
+    else if (anger > 25) newSrc = "assets/neutral (1).png";
+    else                 newSrc = "assets/calm (1).png";
+    if (snakeEl.getAttribute("src") !== newSrc) snakeEl.setAttribute("src", newSrc);
+  }
+
+  function showOverlay(title, subtitle, color, btnText, btnAction) {
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:Arial,sans-serif;color:white;";
+    overlay.innerHTML = `
+      <h1 style="font-size:4rem;margin-bottom:0.2em;color:${color};">${title}</h1>
+      <p style="color:#aaa;margin-bottom:2rem;">${subtitle}</p>
+      <button onclick="${btnAction}" style="padding:14px 36px;font-size:1.2rem;background:${color};color:#111;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">${btnText}</button>
+    `;
+    document.body.appendChild(overlay);
+  }
+</script>
+
+<h1>Snake Charmer</h1>
+<a href="index.html" style="position:fixed;top:16px;left:20px;color:#888;font-size:0.8rem;font-family:Arial,sans-serif;text-decoration:none;z-index:100;">← Menu</a>
+
+<script>
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function midiToFreq(noteNumber) {
+  return 440 * Math.pow(2, (noteNumber - 69) / 12);
+}
+
+function playTone(freq, velocity = 1) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = "sine";
+  osc.frequency.value = freq;
+  gain.gain.value = 0.8 * velocity; // louder than music (music is 0.15)
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.4);
+}
+
+function startMusic() {
+  const bgm = document.getElementById("bgmusic");
+  if (!bgm) return;
+  bgm.volume = 0.15; // quieter so notes stand out
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  if (bgm.paused) bgm.play().catch(() => {});
+}
+
+const indicator = document.createElement("div");
+indicator.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:8rem;font-weight:bold;pointer-events:none;z-index:1000;transition:transform 0.1s ease-out,opacity 0.3s ease;opacity:0;text-shadow:0 0 40px currentColor;";
+document.body.appendChild(indicator);
+
+let indicatorTimeout = null;
+
+function showIndicator(scoreValue) {
+  clearTimeout(indicatorTimeout);
+  if (scoreValue === -1)     { indicator.textContent = "✗"; indicator.style.color = "#e87a7a"; }
+  else if (scoreValue === 0) { indicator.textContent = "–"; indicator.style.color = "#888"; }
+  else if (scoreValue >= 0.5){ indicator.textContent = "✓"; indicator.style.color = "#7ae8a0"; }
+  else                       { indicator.textContent = "~"; indicator.style.color = "#e8c97a"; }
+  indicator.style.opacity = "1";
+  indicator.style.transform = "translate(-50%, -50%) scale(1)";
+  indicatorTimeout = setTimeout(() => {
+    indicator.style.opacity = "0";
+    indicator.style.transform = "translate(-50%, -50%) scale(0.6)";
+  }, 600);
+}
+
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const WHITE_KEY_PATTERN = [1,0,1,0,1,1,0,1,0,1,0,1];
+
+function midiToWhiteKeyX(midiNote) {
+  const MIDI_START = 21;
+  const TOTAL_WHITE = 52;
+  let whiteCount = 0;
+  for (let n = MIDI_START; n < midiNote; n++) {
+    if (WHITE_KEY_PATTERN[n % 12] === 1) whiteCount++;
+  }
+  if (WHITE_KEY_PATTERN[midiNote % 12] === 0) whiteCount += 0.5;
+  // Clamp to 2% minimum so leftmost keys stay on screen
+  return Math.max(2, (whiteCount / TOTAL_WHITE) * 100 - 10);
+}
+
+const activeNotes = {};
+
+function startNote(midiNote, noteName, isCorrect) {
+  if (activeNotes[midiNote]) return;
+  const xPct = midiToWhiteKeyX(midiNote);
+  const color = isCorrect === null ? "#888" : isCorrect ? "#7ae8a0" : "#e87a7a";
+
+  const container = document.createElement("div");
+  container.style.cssText = `position:fixed;left:${xPct}%;bottom:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;pointer-events:none;z-index:500;`;
+
+  const rect = document.createElement("div");
+  rect.style.cssText = `width:18px;height:0px;background:${color};opacity:0.35;border-radius:4px 4px 0 0;`;
+
+  const label = document.createElement("div");
+  label.textContent = noteName;
+  label.style.cssText = `font-size:0.85rem;font-weight:bold;font-family:Arial,sans-serif;color:${color};text-shadow:0 0 8px ${color};margin-top:2px;white-space:nowrap;`;
+
+  container.appendChild(rect);
+  container.appendChild(label);
+  document.body.appendChild(container);
+
+  const startTime = Date.now();
+  const growInterval = setInterval(() => {
+    const px = Math.min((Date.now() - startTime) / 1000 * 120, window.innerHeight * 0.9);
+    rect.style.height = px + "px";
+  }, 16);
+
+  activeNotes[midiNote] = { container, rect, startTime, growInterval };
+}
+
+function releaseNote(midiNote) {
+  const note = activeNotes[midiNote];
+  if (!note) return;
+  clearInterval(note.growInterval);
+  delete activeNotes[midiNote];
+  const { container, rect } = note;
+  const heldHeight = parseFloat(rect.style.height) || 4;
+  const duration = Math.max(2, heldHeight / 80);
+  container.style.transition = `transform ${duration}s linear, opacity 0.4s ease ${duration - 0.4}s`;
+  container.style.transform = `translateX(-50%) translateY(calc(-100vh - ${heldHeight + 40}px))`;
+  container.style.opacity = "0";
+  setTimeout(() => container.remove(), duration * 1000);
+}
+
+const scales = [
+    [48, 50, 52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72],
+    [48, 50, 51, 53, 55, 56, 58, 60, 62, 63, 65, 67, 68, 70, 72],
+    [48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72],
+    [48, 49, 52, 55, 56, 60, 61, 64, 67, 68, 72],
+    [49, 52, 55, 56, 59, 61, 64, 67, 68, 71]
+];
+let last = [];
+let lastNote = null;
+let lastNoteTime = 0;
+
+function score(level, note) {
+    const now = Date.now();
+    const timeSinceLast = now - lastNoteTime;
+
+    if (timeSinceLast < 250 || note === lastNote) {
+      lastNote = note;
+      lastNoteTime = now;
+      last.push(note);
+      if (last.length > 6) last = last.slice(-6);
+      return 0;
+    }
+
+    lastNote = note;
+    lastNoteTime = now;
+    last.push(note);
+    if (!scales[level].includes(note)) return -1.0;
+    if (last.length < 6) return 0.5;
+    if (last.length > 6) last = last.slice(-6);
+    for (let i = 0; i < 5; i++) {
+        if (last[i] === note) return (i * 0.1 + 0.2);
+    }
+    return 0.5;
+}
+
+WebMidi.enable().then(setupMidi).catch(err => console.error("MIDI enable failed:", err));
+
+function setupMidi() {
+  WebMidi.addListener("connected", () => WebMidi.inputs.forEach(attachListeners));
+  WebMidi.inputs.forEach(attachListeners);
+}
+
+function attachListeners(input) {
+  input.removeListener("noteon");
+  input.removeListener("noteoff");
+  input.addListener("noteon", e => {
+    startMusic();
+    const freq = midiToFreq(e.note.number);
+    playTone(freq, e.velocity);
+    const scoreValue = score(0, e.note.number);
+    const noteName = NOTE_NAMES[e.note.number % 12] + e.note.octave;
+    showIndicator(scoreValue);
+    const noteColor = scoreValue === 0 ? null : scoreValue > 0;
+    startNote(e.note.number, noteName, noteColor);
+    updateCombo(scoreValue);
+    drainAnger(scoreValue);
+  });
+  input.addListener("noteoff", e => releaseNote(e.note.number));
+}
+</script>
+
+</body>
+</html>
