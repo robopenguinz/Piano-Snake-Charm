@@ -8,17 +8,14 @@
 </head>
 <body>
 
-<!-- Background music (src set by JS) -->
 <audio id="bgmusic" loop></audio>
 
-<!-- Left side overlay -->
 <div style="position:fixed;top:0;left:0;width:750px;height:100%;background:rgba(128,128,128,0.75);pointer-events:none;z-index:10;">
-  <img id="diagram" src="assets/piano.png" style="position:fixed; bottom: 0;">
+  <img id="diagram" src="assets/piano.png" style="position:fixed;bottom:0;">
 </div>
 
-<!-- Right side snake + basket -->
 <div style="position:fixed;right:5%;top:50%;transform:translateY(-50%);width:200px;height:200px;pointer-events:none;z-index:20;">
-  <div style="position:absolute;top:-44px;right:-30px;width:160px;pointer-events:none;">
+  <div id="anger-wrap" style="position:absolute;top:-44px;right:-30px;width:160px;pointer-events:none;">
     <div style="font-family:Arial,sans-serif;font-size:0.6rem;color:white;text-align:center;margin-bottom:3px;letter-spacing:0.1em;text-shadow:0 0 6px #000;">ANGER</div>
     <div style="width:160px;height:12px;background:rgba(0,0,0,0.5);border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,0.2);">
       <div id="anger-bar" style="height:100%;width:100%;background:linear-gradient(90deg,#e8c97a,#e87a7a);border-radius:6px;transition:width 0.2s ease;"></div>
@@ -28,401 +25,316 @@
   <img src="assets/basket.png" style="position:absolute;bottom:0;width:200%;right:50%;top:-20%;image-rendering:pixelated;">
 </div>
 
-<!-- Timer -->
 <div id="timer" style="position:fixed;top:16px;right:20px;font-family:Arial,sans-serif;font-size:2rem;font-weight:bold;color:white;text-shadow:0 0 10px rgba(0,0,0,0.8);z-index:100;">60</div>
-
-<!-- Combo display -->
 <div id="combo" style="position:fixed;bottom:30px;right:20px;font-family:Arial,sans-serif;font-size:1.4rem;font-weight:bold;color:#e8c97a;text-shadow:0 0 12px #e8c97a;z-index:100;opacity:0;transition:opacity 0.3s;"></div>
-
-<!-- Level title -->
 <div id="level-title" style="position:fixed;top:16px;left:50%;transform:translateX(-50%);font-family:Arial,sans-serif;font-size:1rem;font-weight:bold;color:rgba(255,255,255,0.6);letter-spacing:0.15em;text-transform:uppercase;z-index:100;"></div>
 
+<div id="song-wrap" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);width:400px;pointer-events:none;z-index:100;">
+  <div style="font-family:Arial,sans-serif;font-size:0.75rem;color:white;text-align:center;margin-bottom:5px;letter-spacing:0.12em;">▶ PRESS ANY KEY TO PLAY THE SONG</div>
+  <div style="width:400px;height:16px;background:rgba(0,0,0,0.5);border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.25);">
+    <div id="song-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#7a7ae8,#e87ae8);border-radius:8px;transition:width 0.15s ease;"></div>
+  </div>
+  <div id="song-pct" style="font-family:Arial,sans-serif;font-size:0.65rem;color:#aaa;text-align:center;margin-top:4px;">0%</div>
+</div>
+
+<img id="swag-img" src="assets/swag.png" style="display:none;position:fixed;left:75%;bottom:750px;transform:translateX(-50%);width:200px;image-rendering:pixelated;pointer-events:none;z-index:100;transition:bottom 3.2s cubic-bezier(0.22,1,0.36,1);">
+<div id="strobe" style="display:none;position:fixed;inset:0;background:white;pointer-events:none;z-index:200;opacity:0;"></div>
+
 <style>
-@keyframes bob {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-18px); }
-}
-@keyframes slideDown {
-  0%   { transform: translateY(0px);   opacity: 1; }
-  100% { transform: translateY(300px); opacity: 0; }
-}
+@keyframes bob { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(-18px)} }
+@keyframes slideDown { 0%{transform:translateY(0px);opacity:1} 100%{transform:translateY(300px);opacity:0} }
 </style>
 
 <script>
-  // ── LEVEL DEFINITIONS ────────────────────────────────────────────────
-  const LEVELS = [
-    {
-      index: 0,
-      title: "Vienna",
-      subtitle: "Austria · Classical · Major Scale",
-      music: "assets/classical.mp3",
-      scaleIndex: 0,   // Major
-      angerRefillBase: 0.15,
-      angerRefillMax:  0.45,
-    },
-    {
-      index: 1,
-      title: "Tehran",
-      subtitle: "Iran · Arabic · Harmonic Minor",
-      music: "assets/arabic.mp3",
-      scaleIndex: 1,   // Harmonic Minor
-      angerRefillBase: 0.22,
-      angerRefillMax:  0.58,
-    },
-    {
-      index: 2,
-      title: "Dublin",
-      subtitle: "Ireland · Irish Folk · Pentatonic",
-      music: "assets/irish.mp3",
-      scaleIndex: 2,   // Pentatonic
-      angerRefillBase: 0.30,
-      angerRefillMax:  0.70,
-    },
-    {
-      index: 3,
-      title: "Java",
-      subtitle: "Indonesia · Gamelan · Pelog",
-      music: "assets/gamelan.mp3",
-      scaleIndex: 3,   // Pelog
-      angerRefillBase: 0.38,
-      angerRefillMax:  0.82,
-    },
-    {
-      index: 4,
-      title: "Berlin",
-      subtitle: "Germany · Techno · Chromatic",
-      music: "assets/techno.mp3",
-      scaleIndex: 4,   // Chromatic
-      angerRefillBase: 0.50,
-      angerRefillMax:  1.00,
-    },
-  ];
-
-  // Read level from URL param, clamp to valid range
-  const params = new URLSearchParams(window.location.search);
-  const levelIndex = Math.min(Math.max(parseInt(params.get("level") || "0"), 0), LEVELS.length - 1);
-  const LEVEL = LEVELS[levelIndex];
-
-  // Set page title and level label
-  document.title = LEVEL.title;
-  document.getElementById("level-title").textContent = `${LEVEL.title} — ${LEVEL.subtitle}`;
-
-  // Set background music
-  const bgmEl = document.getElementById("bgmusic");
-  bgmEl.src = LEVEL.music;
-
-  const diagramEl = document.getElementById("diagram");
-  switch (LEVEL.index) {
-    case 0:
-      diagramEl.src = "assets/major.png";
-      break;
-    case 1:
-      diagramEl.src = "assets/harmonicminor.png";
-      break;
-    case 2:
-      diagramEl.src = "assets/pentatonic.png";
-      break;
-    case 3:
-      diagramEl.src = "assets/pelog.png";
-      break;
-    case 4:
-      diagramEl.src = "assets/chromatic.png";
-      break;
-  }
-
-  let gameOver = false;
-
-  let timeLeft = 60;
-  const timerEl = document.getElementById("timer");
-  const timerInterval = setInterval(() => {
-    if (gameOver) return;
-    timeLeft--;
-    timerEl.textContent = timeLeft;
-    if (timeLeft <= 10) timerEl.style.color = "#e87a7a";
-    if (timeLeft <= 0) {
-      clearInterval(timerInterval);
-      clearInterval(angerRefillInterval);
-      gameOver = true;
-      showOverlay("Game Over", "Time's up!", "#e87a7a", "Retry", "location.reload()");
-    }
-  }, 1000);
-
-  let anger = 100;
-  const angerBar = document.getElementById("anger-bar");
-
-  const angerRefillInterval = setInterval(() => {
-    if (gameOver) return;
-    // Higher levels refill faster
-    const refillRate = LEVEL.angerRefillBase + ((100 - anger) / 100) * LEVEL.angerRefillMax;
-    anger = Math.min(100, anger + refillRate);
-    angerBar.style.width = anger + "%";
-    updateSnakeImage();
-  }, 100);
-
-  let comboCount = 0;
-  const comboEl = document.getElementById("combo");
-  let comboTimeout = null;
-
-  function updateCombo(scoreValue) {
-    if (scoreValue > 0) comboCount++;
-    else if (scoreValue != 0) comboCount = 0;
-    if (comboCount >= 2) {
-      comboEl.textContent = `x${comboCount} COMBO`;
-      comboEl.style.opacity = "1";
-      clearTimeout(comboTimeout);
-      comboTimeout = setTimeout(() => { comboEl.style.opacity = "0"; }, 1500);
-    } else {
-      comboEl.style.opacity = "0";
-    }
-  }
-
-  function getComboMultiplier() {
-    if (comboCount < 2) return 1.0;
-    return Math.pow(comboCount, .7);
-  }
-
-  function drainAnger(scoreValue) {
-    if (gameOver) return;
-    if (scoreValue <= 0) return;
-    const resistance = 1 + ((100 - anger) / 100) * 1.2;
-    const drain = (scoreValue * 5 * getComboMultiplier()) / resistance;
-    anger = Math.max(0, anger - drain);
-    angerBar.style.width = anger + "%";
-    updateSnakeImage();
-    if (anger <= 0) {
-      gameOver = true;
-      clearInterval(timerInterval);
-      clearInterval(angerRefillInterval);
-      const snakeEl = document.getElementById("snake-img");
-      snakeEl.style.animation = "slideDown 3s ease-in forwards";
-
-      const isLast = levelIndex >= LEVELS.length - 1;
-      const nextAction = isLast
-        ? "window.location.href='index.html'"
-        : `window.location.href='snake-charmer.html?level=${levelIndex + 1}'`;
-      const nextLabel = isLast ? "Back to Menu" : "Next Level";
-      const nextSubtitle = isLast
-        ? "You've charmed all the snakes!"
-        : `Next: ${LEVELS[levelIndex + 1].title} — ${LEVELS[levelIndex + 1].subtitle}`;
-
-      setTimeout(() => {
-        showOverlay("You Win! 🎵", nextSubtitle, "#7ae8a0", nextLabel, nextAction);
-      }, 3000);
-    }
-  }
-
-  function updateSnakeImage() {
-    const snakeEl = document.getElementById("snake-img");
-    if (!snakeEl || gameOver) return;
-    let newSrc;
-    if (anger > 50)      newSrc = "assets/angry.png";
-    else if (anger > 25) newSrc = "assets/neutral.png";
-    else                 newSrc = "assets/calm.png";
-    if (snakeEl.getAttribute("src") !== newSrc) snakeEl.setAttribute("src", newSrc);
-  }
-
-  function showOverlay(title, subtitle, color, btnText, btnAction) {
-    const overlay = document.createElement("div");
-    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:Arial,sans-serif;color:white;text-align:center;padding:20px;";
-    overlay.innerHTML = `
-      <h1 style="font-size:4rem;margin-bottom:0.2em;color:${color};">${title}</h1>
-      <p style="color:#aaa;margin-bottom:2rem;font-size:1.1rem;">${subtitle}</p>
-      <button onclick="${btnAction}" style="padding:14px 36px;font-size:1.2rem;background:${color};color:#111;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">${btnText}</button>
-    `;
-    document.body.appendChild(overlay);
-  }
-</script>
-
-<h1 id="page-h1">Vienna</h1>
-<a href="index.html" style="position:fixed;top:16px;left:20px;color:#888;font-size:0.8rem;font-family:Arial,sans-serif;text-decoration:none;z-index:100;">← Menu</a>
-
-<script>
-  // Update h1 to match level
-  document.getElementById("page-h1").textContent = LEVEL.title;
-</script>
-
-<script>
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-let pianoBuffer = null;
-let notestring = "assets/piano.mp3"
-switch (LEVEL.index) {
-  case 0:
-    notestring = "assets/piano.mp3";
-    break;
-  case 1:
-    notestring = "assets/oud.mp3";
-    break;
-  case 2:
-    notestring = "assets/lyre.mp3";
-    break;
-  case 3:
-    notestring = "assets/gangsa.mp3";
-    break;
-  case 4:
-    notestring = "assets/piano.mp3";
-    break;
-}
-fetch(notestring)
-  .then(r => r.arrayBuffer())
-  .then(ab => audioCtx.decodeAudioData(ab))
-  .then(buf => { pianoBuffer = buf; })
-  .catch(err => console.warn("note.mp3 load failed:", err));
-
-function playNote(notenum, velocity = 1) {
-  if (audioCtx.state === "suspended") audioCtx.resume();
-  const gain = audioCtx.createGain();
-  gain.gain.value = Math.min(1.0, 0.8 * velocity);
-  gain.connect(audioCtx.destination);
-
-  if (pianoBuffer) {
-    const src = audioCtx.createBufferSource();
-    src.buffer = pianoBuffer;
-    src.playbackRate.value = Math.pow(2, (notenum - 60) / 12);
-    src.connect(gain);
-    src.start();
-  } else {
-    const osc = audioCtx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = 440 * Math.pow(2, (notenum - 69) / 12);
-    osc.connect(gain);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.4);
-  }
-}
-
-function startMusic() {
-  const bgm = document.getElementById("bgmusic");
-  if (!bgm) return;
-  bgm.volume = 0.5;
-  if (audioCtx.state === "suspended") audioCtx.resume();
-  if (bgm.paused) bgm.play().catch(() => {});
-}
-
-const indicator = document.createElement("div");
-indicator.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:8rem;font-weight:bold;pointer-events:none;z-index:1000;transition:transform 0.1s ease-out,opacity 0.3s ease;opacity:0;text-shadow:0 0 40px currentColor;";
-document.body.appendChild(indicator);
-
-let indicatorTimeout = null;
-
-function showIndicator(scoreValue) {
-  clearTimeout(indicatorTimeout);
-  if (scoreValue === -1)     { indicator.textContent = "✗"; indicator.style.color = "#e87a7a"; }
-  else if (scoreValue === 0) { indicator.textContent = "–"; indicator.style.color = "#888"; }
-  else if (scoreValue >= 0.5){ indicator.textContent = "✓"; indicator.style.color = "#7ae8a0"; }
-  else                       { indicator.textContent = "~"; indicator.style.color = "#e8c97a"; }
-  indicator.style.opacity = "1";
-  indicator.style.transform = "translate(-50%, -50%) scale(1)";
-  indicatorTimeout = setTimeout(() => {
-    indicator.style.opacity = "0";
-    indicator.style.transform = "translate(-50%, -50%) scale(0.6)";
-  }, 600);
-}
-
-const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-
-const activeNotes = {};
-
-function startNote(midiNote, noteName, isCorrect) {
-  if (activeNotes[midiNote]) return;
-  const xPct = midiNote * 29 - 1372;
-  const color = isCorrect === null ? "#888" : isCorrect ? "#7ae8a0" : "#e87a7a";
-
-  const container = document.createElement("div");
-  container.style.cssText = `position:fixed;left:${xPct}px;bottom:200px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;pointer-events:none;z-index:500;`;
-
-  const rect = document.createElement("div");
-  rect.style.cssText = `width:18px;height:0px;background:${color};opacity:0.35;border-radius:4px 4px 0 0;`;
-
-  const label = document.createElement("div");
-  label.textContent = noteName;
-  label.style.cssText = `font-size:0.85rem;font-weight:bold;font-family:Arial,sans-serif;color:${color};text-shadow:0 0 8px ${color};margin-top:2px;white-space:nowrap;`;
-
-  container.appendChild(rect);
-  container.appendChild(label);
-  document.body.appendChild(container);
-
-  const startTime = Date.now();
-  const growInterval = setInterval(() => {
-    const px = Math.min((Date.now() - startTime) / 1000 * 120, window.innerHeight * 0.9);
-    rect.style.height = px + "px";
-  }, 16);
-
-  activeNotes[midiNote] = { container, rect, startTime, growInterval };
-}
-
-function releaseNote(midiNote) {
-  const note = activeNotes[midiNote];
-  if (!note) return;
-  clearInterval(note.growInterval);
-  delete activeNotes[midiNote];
-  const { container, rect } = note;
-  const heldHeight = parseFloat(rect.style.height) || 4;
-  const duration = Math.max(2, heldHeight / 80);
-  container.style.transition = `transform ${duration}s linear, opacity 0.4s ease ${duration - 0.4}s`;
-  container.style.transform = `translateX(-50%) translateY(calc(-100vh - ${heldHeight + 40}px))`;
-  container.style.opacity = "0";
-  setTimeout(() => container.remove(), duration * 1000);
-}
-
-const scales = [
-    [48, 50, 52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72], // Major
-    [48, 50, 51, 53, 55, 56, 59, 60, 62, 63, 65, 67, 68, 71, 72], // Harmonic Minor
-    [48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72],                 // Pentatonic
-    [48, 49, 52, 55, 56, 59, 60, 61, 64, 67, 68, 71, 72],         // Pelog
-    [49, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72] // Chromatic
+const LEVELS = [
+  {index:0,title:"Vienna",subtitle:"Austria · Classical · Major Scale",    music:"assets/classical.mp3", background:"assets/vienna", scaleIndex:0,angerRefillBase:0.15,angerRefillMax:0.45},
+  {index:1,title:"Tehran",subtitle:"Iran · Arabic · Harmonic Minor",       music:"assets/arabic.mp3",    background:"assets/vienna",scaleIndex:1,angerRefillBase:0.22,angerRefillMax:0.58},
+  {index:2,title:"Dublin",subtitle:"Ireland · Irish Folk · Pentatonic",    music:"assets/irish.mp3",     background:"assets/vienna",scaleIndex:2,angerRefillBase:0.30,angerRefillMax:0.70},
+  {index:3,title:"Java",  subtitle:"Indonesia · Gamelan · Pelog",          music:"assets/gamelan.mp3",   background:"assets/vienna",scaleIndex:3,angerRefillBase:0.38,angerRefillMax:0.82},
+  {index:4,title:"Berlin",subtitle:"Germany · Techno — press keys to play the song",music:null,  background:"assets/vienna", scaleIndex:4,angerRefillBase:0,   angerRefillMax:0   },
 ];
 
-let last = [];
-let lastNote = null;
-let lastNoteTime = 0;
+const params = new URLSearchParams(window.location.search);
+const levelIndex = Math.min(Math.max(parseInt(params.get("level")||"0"),0),LEVELS.length-1);
+const LEVEL = LEVELS[levelIndex];
+const isBerlin = levelIndex === 4;
 
-function score(level, note) {
-    const now = Date.now();
-    const timeSinceLast = now - lastNoteTime;
+document.title = LEVEL.title;
+document.getElementById("level-title").textContent = `${LEVEL.title} — ${LEVEL.subtitle}`;
+if (!isBerlin && LEVEL.music) document.getElementById("bgmusic").src = LEVEL.music;
+const diagrams=["assets/major.png","assets/harmonicminor.png","assets/pentatonic.png","assets/pelog.png","assets/chromatic.png"];
+document.getElementById("diagram").src = diagrams[LEVEL.index]||"assets/piano.png";
 
-    if (timeSinceLast < 250 || note === lastNote) {
-      lastNote = note;
-      lastNoteTime = now;
-      last.push(note);
-      if (last.length > 6) last = last.slice(-6);
-      return 0;
-    }
-
-    lastNote = note;
-    lastNoteTime = now;
-    last.push(note);
-    if (!scales[level].includes(note)) return -1.0;
-    if (last.length < 6) return 0.5;
-    if (last.length > 6) last = last.slice(-6);
-    for (let i = 0; i < 5; i++) {
-        if (last[i] === note) return (i * 0.1 + 0.2);
-    }
-    return 0.5;
+if (isBerlin) {
+  document.getElementById("anger-wrap").style.display="none";
+  document.getElementById("timer").style.display="none";
+  document.getElementById("song-wrap").style.display="block";
+  document.getElementById("swag-img").style.display="block";
 }
 
-WebMidi.enable().then(setupMidi).catch(err => console.error("MIDI enable failed:", err));
+let gameOver=false, timeLeft=60;
+const timerEl=document.getElementById("timer");
 
-function setupMidi() {
-  WebMidi.addListener("connected", () => WebMidi.inputs.forEach(attachListeners));
+const timerInterval=setInterval(()=>{
+  if(gameOver||isBerlin)return;
+  timeLeft--;
+  timerEl.textContent=timeLeft;
+  if(timeLeft<=10)timerEl.style.color="#e87a7a";
+  if(timeLeft<=0){clearInterval(timerInterval);clearInterval(angerRefillInterval);gameOver=true;showOverlay("Game Over","Time's up!","#e87a7a","Retry","location.reload()");}
+},1000);
+
+let anger=100;
+const angerBar=document.getElementById("anger-bar");
+const angerRefillInterval=setInterval(()=>{
+  if(gameOver||isBerlin)return;
+  const r=LEVEL.angerRefillBase+((100-anger)/100)*LEVEL.angerRefillMax;
+  anger=Math.min(100,anger+r);
+  angerBar.style.width=anger+"%";
+  updateSnakeImage();
+},100);
+
+let comboCount=0;
+const comboEl=document.getElementById("combo");
+let comboTimeout=null;
+function updateCombo(v){
+  if(v>0)comboCount++; else if(v!==0)comboCount=0;
+  if(comboCount>=2){comboEl.textContent=`x${comboCount} COMBO`;comboEl.style.opacity="1";clearTimeout(comboTimeout);comboTimeout=setTimeout(()=>{comboEl.style.opacity="0";},1500);}
+  else comboEl.style.opacity="0";
+}
+function getComboMultiplier(){return comboCount<2?1.0:Math.pow(comboCount,0.7);}
+
+function drainAnger(v){
+  if(gameOver)return; if(v<=0)return;
+  const r=1+((100-anger)/100)*1.2;
+  anger=Math.max(0,anger-(v*5*getComboMultiplier())/r);
+  angerBar.style.width=anger+"%";
+  updateSnakeImage();
+  if(anger<=0)triggerWin();
+}
+
+function triggerWin(){
+  if(gameOver)return; gameOver=true;
+  stopStrobe();
+  clearInterval(timerInterval);clearInterval(angerRefillInterval);
+  const isLast=levelIndex>=LEVELS.length-1;
+  const nextAction=isLast?"window.location.href='index.html'":`window.location.href='snake-charmer.html?level=${levelIndex+1}'`;
+  const nextLabel=isLast?"Back to Menu":"Next Level";
+  const nextSubtitle=isLast?"You've charmed all the snakes!":`Next: ${LEVELS[levelIndex+1].title} — ${LEVELS[levelIndex+1].subtitle}`;
+  if(!isBerlin){document.getElementById("snake-img").style.animation="slideDown 3s ease-in forwards";setTimeout(()=>showOverlay("You Win! 🎵",nextSubtitle,"#7ae8a0",nextLabel,nextAction),3000);}
+  else setTimeout(()=>showOverlay("You Win! 🎵",nextSubtitle,"#7ae8a0",nextLabel,nextAction),700);
+}
+
+function updateSnakeImage(){
+  const el=document.getElementById("snake-img");
+  if(!el||gameOver||isBerlin)return;
+  const src=anger>50?"assets/angry.png":anger>25?"assets/neutral.png":"assets/calm.png";
+  if(el.getAttribute("src")!==src)el.setAttribute("src",src);
+}
+
+function showOverlay(title,subtitle,color,btnText,btnAction){
+  const o=document.createElement("div");
+  o.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;font-family:Arial,sans-serif;color:white;text-align:center;padding:20px;";
+  o.innerHTML=`<h1 style="font-size:4rem;margin-bottom:0.2em;color:${color};">${title}</h1><p style="color:#aaa;margin-bottom:2rem;font-size:1.1rem;">${subtitle}</p><button onclick="${btnAction}" style="padding:14px 36px;font-size:1.2rem;background:${color};color:#111;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">${btnText}</button>`;
+  document.body.appendChild(o);
+}
+
+let swagTriggered=false, strobeInterval=null, strobeActive=false;
+function triggerSwag(){
+  if(swagTriggered)return; swagTriggered=true;
+  requestAnimationFrame(()=>{document.getElementById("swag-img").style.bottom="20px";});
+}
+function startStrobe(){
+  if(strobeActive)return; strobeActive=true;
+  const strobe=document.getElementById("strobe");
+  strobe.style.display="block";
+  let on=false;
+  strobeInterval=setInterval(()=>{
+    on=!on; strobe.style.opacity=on?"0.55":"0";
+    const hues=["white","#ff4fff","#4fffff","#ffff44","#ff4444"];
+    strobe.style.background=hues[Math.floor(Math.random()*hues.length)];
+  },80);
+}
+function stopStrobe(){
+  if(!strobeActive)return; strobeActive=false;
+  clearInterval(strobeInterval);
+  const strobe=document.getElementById("strobe");
+  strobe.style.opacity="0";
+  setTimeout(()=>{strobe.style.display="none";},200);
+}
+</script>
+
+<h1 id="page-h1">Snake Charmer</h1>
+<a href="index.html" style="position:fixed;top:16px;left:20px;color:#888;font-size:0.8rem;font-family:Arial,sans-serif;text-decoration:none;z-index:100;">← Menu</a>
+<script>document.getElementById("page-h1").textContent=LEVEL.title;</script>
+
+<script>
+const audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+
+const instrumentFiles=["assets/piano.mp3","assets/oud.mp3","assets/lyre.mp3","assets/gangsa.mp3","assets/piano.mp3"];
+let instrumentBuffer=null;
+fetch(instrumentFiles[LEVEL.index]).then(r=>r.arrayBuffer()).then(ab=>audioCtx.decodeAudioData(ab)).then(buf=>{instrumentBuffer=buf;}).catch(e=>console.warn("Instrument load failed:",e));
+
+let technoBuffer=null, technoOffset=0, technoDuration=0;
+let berlinChunkEndTime=0, berlinExtended=false;
+
+if(isBerlin){
+  fetch("assets/techno.mp3").then(r=>r.arrayBuffer()).then(ab=>audioCtx.decodeAudioData(ab)).then(buf=>{technoBuffer=buf;technoDuration=buf.duration;}).catch(e=>console.warn("techno.mp3 failed:",e));
+}
+
+function updateSongBar(){
+  const pct=Math.round((technoOffset/technoDuration)*100);
+  document.getElementById("song-bar").style.width=pct+"%";
+  document.getElementById("song-pct").textContent=pct+"%";
+  if(pct>=38&&!swagTriggered)triggerSwag();
+  if(pct>=42&&!strobeActive)startStrobe();
+}
+
+function scheduleBerlinChunk(startAt){
+  const CHUNK=0.5;
+  const pctBefore=(technoOffset/technoDuration)*100;
+  const isSilent=pctBefore>=41&&pctBefore<42;
+  const gain=audioCtx.createGain();
+  gain.gain.value=isSilent?0:0.9;
+  gain.connect(audioCtx.destination);
+  const src=audioCtx.createBufferSource();
+  src.buffer=technoBuffer; src.connect(gain);
+  src.start(startAt,technoOffset,CHUNK);
+  technoOffset=Math.min(technoOffset+CHUNK,technoDuration);
+  berlinChunkEndTime=startAt+CHUNK;
+  updateSongBar();
+  src.onended=()=>{
+    berlinExtended=false;
+    if(technoOffset>=technoDuration)triggerWin();
+  };
+}
+
+function playBerlinChunk(){
+  if(!technoBuffer||gameOver)return;
+  if(technoOffset>=technoDuration)return;
+  if(audioCtx.state==="suspended")audioCtx.resume();
+  const now=audioCtx.currentTime;
+  if(now<berlinChunkEndTime){
+    if(berlinExtended)return;
+    berlinExtended=true;
+    scheduleBerlinChunk(berlinChunkEndTime);
+  } else {
+    berlinExtended=false;
+    scheduleBerlinChunk(now);
+  }
+}
+
+function playNote(notenum,velocity=1){
+  if(audioCtx.state==="suspended")audioCtx.resume();
+  if(isBerlin){playBerlinChunk();return;}
+  const gain=audioCtx.createGain();
+  gain.gain.value=Math.min(1.0,0.8*velocity);
+  gain.connect(audioCtx.destination);
+  if(instrumentBuffer){
+    const src=audioCtx.createBufferSource();
+    src.buffer=instrumentBuffer;
+    src.playbackRate.value=Math.pow(2,(notenum-60)/12);
+    src.connect(gain); src.start();
+  } else {
+    const osc=audioCtx.createOscillator();
+    osc.type="sine"; osc.frequency.value=440*Math.pow(2,(notenum-69)/12);
+    osc.connect(gain); osc.start(); osc.stop(audioCtx.currentTime+0.4);
+  }
+}
+
+function startMusic(){
+  if(isBerlin)return;
+  const bgm=document.getElementById("bgmusic"); if(!bgm)return;
+  bgm.volume=0.5;
+  if(audioCtx.state==="suspended")audioCtx.resume();
+  if(bgm.paused)bgm.play().catch(()=>{});
+}
+
+const indicator=document.createElement("div");
+indicator.style.cssText="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:8rem;font-weight:bold;pointer-events:none;z-index:1000;transition:transform 0.1s ease-out,opacity 0.3s ease;opacity:0;text-shadow:0 0 40px currentColor;";
+document.body.appendChild(indicator);
+let indicatorTimeout=null;
+function showIndicator(v){
+  clearTimeout(indicatorTimeout);
+  if(v===-1){indicator.textContent="✗";indicator.style.color="#e87a7a";}
+  else if(v===0){indicator.textContent="–";indicator.style.color="#888";}
+  else if(v>=0.5){indicator.textContent="✓";indicator.style.color="#7ae8a0";}
+  else{indicator.textContent="~";indicator.style.color="#e8c97a";}
+  indicator.style.opacity="1"; indicator.style.transform="translate(-50%,-50%) scale(1)";
+  indicatorTimeout=setTimeout(()=>{indicator.style.opacity="0";indicator.style.transform="translate(-50%,-50%) scale(0.6)";},600);
+}
+
+const NOTE_NAMES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const activeNotes={};
+
+function startNote(midiNote,noteName,isCorrect){
+  if(activeNotes[midiNote])return;
+  const xPct=midiNote*29-1372;
+  const color=isCorrect===null?"#888":isCorrect?"#7ae8a0":"#e87a7a";
+  const container=document.createElement("div");
+  container.style.cssText=`position:fixed;left:${xPct}px;bottom:200px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;pointer-events:none;z-index:500;`;
+  const rect=document.createElement("div");
+  rect.style.cssText=`width:18px;height:0px;background:${color};opacity:0.35;border-radius:4px 4px 0 0;`;
+  const label=document.createElement("div");
+  label.textContent=noteName;
+  label.style.cssText=`font-size:0.85rem;font-weight:bold;font-family:Arial,sans-serif;color:${color};text-shadow:0 0 8px ${color};margin-top:2px;white-space:nowrap;`;
+  container.appendChild(rect); container.appendChild(label); document.body.appendChild(container);
+  const startTime=Date.now();
+  const growInterval=setInterval(()=>{
+    rect.style.height=Math.min((Date.now()-startTime)/1000*120,window.innerHeight*0.9)+"px";
+  },16);
+  activeNotes[midiNote]={container,rect,startTime,growInterval};
+}
+
+function releaseNote(midiNote){
+  const note=activeNotes[midiNote]; if(!note)return;
+  clearInterval(note.growInterval); delete activeNotes[midiNote];
+  const{container,rect}=note;
+  const heldHeight=parseFloat(rect.style.height)||4;
+  const duration=Math.max(2,heldHeight/80);
+  container.style.transition=`transform ${duration}s linear,opacity 0.4s ease ${duration-0.4}s`;
+  container.style.transform=`translateX(-50%) translateY(calc(-100vh - ${heldHeight+40}px))`;
+  container.style.opacity="0";
+  setTimeout(()=>container.remove(),duration*1000);
+}
+
+const scales=[
+  [48,50,52,53,55,57,59,60,62,64,65,67,69,71,72],
+  [48,50,51,53,55,56,59,60,62,63,65,67,68,71,72],
+  [48,50,52,55,57,60,62,64,67,69,72],
+  [48,49,52,55,56,59,60,61,64,67,68,71,72],
+  [48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72]
+];
+let last=[],lastNote=null,lastNoteTime=0;
+
+function score(level,note){
+  const now=Date.now(), dt=now-lastNoteTime;
+  if(dt<250||note===lastNote){lastNote=note;lastNoteTime=now;last.push(note);if(last.length>6)last=last.slice(-6);return 0;}
+  lastNote=note;lastNoteTime=now;last.push(note);
+  if(!scales[level].includes(note))return -1.0;
+  if(last.length<6)return 0.5;
+  if(last.length>6)last=last.slice(-6);
+  for(let i=0;i<5;i++)if(last[i]===note)return(i*0.1+0.2);
+  return 0.5;
+}
+
+WebMidi.enable().then(setupMidi).catch(err=>console.error("MIDI enable failed:",err));
+function setupMidi(){
+  WebMidi.addListener("connected",()=>WebMidi.inputs.forEach(attachListeners));
   WebMidi.inputs.forEach(attachListeners);
 }
-
-function attachListeners(input) {
-  input.removeListener("noteon");
-  input.removeListener("noteoff");
-  input.addListener("noteon", e => {
+function attachListeners(input){
+  input.removeListener("noteon"); input.removeListener("noteoff");
+  input.addListener("noteon",e=>{
     startMusic();
-    playNote(e.note.number, e.velocity);
-    const scoreValue = score(LEVEL.scaleIndex, e.note.number);
-    const noteName = NOTE_NAMES[e.note.number % 12] + e.note.octave;
-    showIndicator(scoreValue);
-    const noteColor = scoreValue === 0 ? null : scoreValue > 0;
-    startNote(e.note.number, noteName, noteColor);
-    updateCombo(scoreValue);
-    drainAnger(scoreValue);
+    playNote(e.note.number,e.velocity);
+    // Keys display for ALL levels (including Berlin)
+    const v=score(LEVEL.scaleIndex,e.note.number);
+    const noteName=NOTE_NAMES[e.note.number%12]+e.note.octave;
+    showIndicator(v);
+    startNote(e.note.number,noteName,v===0?null:v>0);
+    if(!isBerlin){updateCombo(v);drainAnger(v);}
   });
-  input.addListener("noteoff", e => releaseNote(e.note.number));
+  input.addListener("noteoff",e=>{releaseNote(e.note.number);});
 }
 </script>
 
